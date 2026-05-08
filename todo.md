@@ -68,13 +68,16 @@ Sistema de gestão da Biblioteca Pública Municipal Cruz e Sousa de Schroeder/SC
 - [x] 15 livros reais com autores brasileiros e clássicos (incluindo título regional sobre Schroeder)
 - [x] 31 exemplares distribuídos pelos livros (1 a 3 por título)
 
-## Testes (vitest)
+## Testes (vitest) — 29/29 passando
 
 - [x] `acerva.rules.test.ts` - constantes do produto (15 dias, 2 renovações, 3 simultâneos)
 - [x] `acerva.rules.test.ts` - `addDaysToDate` (sem mutação, prazo correto)
 - [x] `acerva.rules.test.ts` - `diffDaysFloor` (sem atraso, atraso, fração)
 - [x] `acerva.rules.test.ts` - fluxo simulado (criação → renovação → devolução com atraso)
 - [x] `acerva.rules.test.ts` - validação de formato de CPF
+- [x] `acerva.loans.test.ts` - `admin.createLoan` valida verificado/bloqueado/limite/disponibilidade/role
+- [x] `acerva.loans.test.ts` - `loans.renew` aplica MAX_RENEWALS, atraso e dono
+- [x] `acerva.loans.test.ts` - `admin.returnLoan` calcula atraso e bloqueia automaticamente
 - [x] `auth.logout.test.ts` - logout limpa cookie
 
 ## Validações Críticas
