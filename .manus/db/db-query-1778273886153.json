@@ -1,0 +1,9 @@
+{
+  "query": "\nINSERT INTO categories (name, slug) VALUES\n('Lit. Brasileira','lit-brasileira'),\n('Lit. Estrangeira','lit-estrangeira'),\n('Infantojuvenil','infantojuvenil'),\n('História','historia'),\n('Romance','romance'),\n('Poesia','poesia'),\n('Educação','educacao'),\n('Cidade de Schroeder','schroeder')\nON DUPLICATE KEY UPDATE name=VALUES(name);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user m2Zt4eBd2i3mYi1.08e03ffa1e6b --database S7h5fsvkRNxQqYheMmZsA6 --execute \nINSERT INTO categories (name, slug) VALUES\n('Lit. Brasileira','lit-brasileira'),\n('Lit. Estrangeira','lit-estrangeira'),\n('Infantojuvenil','infantojuvenil'),\n('História','historia'),\n('Romance','romance'),\n('Poesia','poesia'),\n('Educação','educacao'),\n('Cidade de Schroeder','schroeder')\nON DUPLICATE KEY UPDATE name=VALUES(name);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 297
+}

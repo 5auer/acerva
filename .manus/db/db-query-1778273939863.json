@@ -1,0 +1,9 @@
+{
+  "query": "\nINSERT INTO book_copies (bookId, copyCode, status)\nSELECT b.id,\n       CONCAT('LIV', LPAD(b.id, 4, '0'), '-', LPAD(n.n, 2, '0')),\n       'available'\nFROM books b\nJOIN (\n  SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3\n) n ON (\n  (b.title IN ('Dom Casmurro','O Pequeno Príncipe','1984','O Menino Maluquinho') AND n.n <= 3)\n  OR (b.title IN ('Memórias Póstumas de Brás Cubas','Capitães da Areia','Vidas Secas','Reinações de Narizinho','Cem Anos de Solidão','O Velho e o Mar','História de Schroeder','Imigração Alemã no Vale do Itajaí') AND n.n <= 2)\n  OR (b.title IN ('Grande Sertão: Veredas','Antologia Poética','Pedagogia do Oprimido') AND n.n <= 1)\n)\nWHERE NOT EXISTS (SELECT 1 FROM book_copies LIMIT 1);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user m2Zt4eBd2i3mYi1.08e03ffa1e6b --database S7h5fsvkRNxQqYheMmZsA6 --execute \nINSERT INTO book_copies (bookId, copyCode, status)\nSELECT b.id,\n       CONCAT('LIV', LPAD(b.id, 4, '0'), '-', LPAD(n.n, 2, '0')),\n       'available'\nFROM books b\nJOIN (\n  SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3\n) n ON (\n  (b.title IN ('Dom Casmurro','O Pequeno Príncipe','1984','O Menino Maluquinho') AND n.n <= 3)\n  OR (b.title IN ('Memórias Póstumas de Brás Cubas','Capitães da Areia','Vidas Secas','Reinações de Narizinho','Cem Anos de Solidão','O Velho e o Mar','História de Schroeder','Imigração Alemã no Vale do Itajaí') AND n.n <= 2)\n  OR (b.title IN ('Grande Sertão: Veredas','Antologia Poética','Pedagogia do Oprimido') AND n.n <= 1)\n)\nWHERE NOT EXISTS (SELECT 1 FROM book_copies LIMIT 1);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 277
+}

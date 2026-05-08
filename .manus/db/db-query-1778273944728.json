@@ -1,0 +1,15 @@
+{
+  "query": "SELECT (SELECT COUNT(*) FROM categories) AS cats, (SELECT COUNT(*) FROM books) AS books_count, (SELECT COUNT(*) FROM book_copies) AS copies_count;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user m2Zt4eBd2i3mYi1.08e03ffa1e6b --database S7h5fsvkRNxQqYheMmZsA6 --execute SELECT (SELECT COUNT(*) FROM categories) AS cats, (SELECT COUNT(*) FROM books) AS books_count, (SELECT COUNT(*) FROM book_copies) AS copies_count;",
+  "rows": [
+    {
+      "cats": "8",
+      "books_count": "15",
+      "copies_count": "31"
+    }
+  ],
+  "messages": [],
+  "stdout": "cats\tbooks_count\tcopies_count\n8\t15\t31\n",
+  "stderr": "",
+  "execution_time_ms": 268
+}
