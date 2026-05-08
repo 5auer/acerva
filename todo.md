@@ -98,29 +98,30 @@ Sistema de gestão da Biblioteca Pública Municipal Cruz e Sousa de Schroeder/SC
 - [ ] Política de multa monetária (hoje só bloqueio)
 - [ ] Renovação direta pelo leitor (hoje a bibliotecária aprova via WhatsApp)
 - [ ] Modo SaaS multi-biblioteca (estrutura prevista, mas não ativada)
-- [ ] Capa dos livros (upload via admin) — campo já existe no schema
+- [x] Capa dos livros (upload via admin) — implementado em v1.2
 
 
-## Gestão de categorias (solicitado pós-MVP)
+## Gestão de categorias
 
-- [ ] Mutation `admin.createCategory` exposta no router (já existe helper em db)
-- [ ] Aba "Categorias" no painel admin: listar + criar nova categoria
-- [ ] Botão "Nova categoria" dentro do modal de cadastro de livro
-- [ ] Teste vitest da nova mutation `admin.createCategory`
-- [ ] Validação de status, checkpoint e entrega
+- [x] Mutation `admin.createCategory` exposta no router
+- [x] Aba "Categorias" no painel admin: listar + criar nova categoria
+- [x] Botão "Nova categoria" dentro do modal de cadastro de livro (com criação inline)
+- [x] Teste vitest da nova mutation `admin.createCategory`
+- [x] Validação de status, checkpoint e entrega
 
 
-## Capa de livro (4:5) e categorias completas
+## Capa de livro 4:5
 
-- [ ] Migration: adicionar coluna coverUrl em books
-- [ ] Mutation admin.createCategory exposta no router
-- [ ] Mutation admin.uploadBookCover (arquivo base64 e URL externa)
-- [ ] Mutation admin.setBookCoverUrl para colar URL da internet
-- [ ] Componente CoverPicker (arquivo/câmera/URL) com preview 4:5
-- [ ] Botão "Nova categoria" dentro do modal de cadastro de livro
-- [ ] Aba "Categorias" no painel admin: listar + criar
-- [ ] Card do catálogo público mostra capa 4:5 (fallback elegante)
-- [ ] Página de detalhes do livro mostra capa 4:5
-- [ ] Painel admin lista capa em miniatura por linha
-- [ ] Teste vitest do upload de capa (URL e arquivo)
-- [ ] Passo-a-passo de jornada do usuário (markdown)
+- [x] Migration: adicionar coluna coverUrl em books
+- [x] Mutation admin.setBookCover (arquivo base64, URL externa, clear)
+- [x] Componente CoverPicker (arquivo/câmera/URL) com preview 4:5
+- [x] Botão "Capa" para edição posterior em cada linha do acervo
+- [x] Card do catálogo público mostra capa 4:5 (fallback elegante)
+- [x] Página de detalhes do livro mostra capa 4:5
+- [x] Painel admin lista capa em miniatura por linha
+- [x] Testes vitest: 7 casos cobrindo URL, dataURL, clear, formato inválido, slug e validação
+- [x] Pós-MVP "Capa dos livros (upload via admin)" implementado nesta versão
+
+## Pós-MVP que ainda restam (não bloqueiam apresentação)
+
+- [x] Passo-a-passo de jornada do usuário (markdown) — `JORNADA_USUARIO.md`
