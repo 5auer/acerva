@@ -27,6 +27,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { CoverPicker, type CoverPickerValue } from "@/components/CoverPicker";
 import {
   AlertTriangle,
   BookOpen,
@@ -35,10 +36,13 @@ import {
   ExternalLink,
   FilePlus2,
   HourglassIcon,
+  Image as ImageIcon,
   Library,
+  Plus,
   RotateCcw,
   ShieldCheck,
   ShieldX,
+  Tag,
   Undo2,
   UserCheck,
   Users,
@@ -105,7 +109,7 @@ export default function AdminPage() {
         <StatsRow />
 
         <Tabs defaultValue="loans" className="mt-2">
-          <TabsList className="grid grid-cols-2 md:grid-cols-4 w-full md:w-auto">
+          <TabsList className="grid grid-cols-3 md:grid-cols-5 w-full md:w-auto">
             <TabsTrigger value="loans">
               <ClipboardList className="h-4 w-4 mr-2" />
               Empréstimos
@@ -117,6 +121,10 @@ export default function AdminPage() {
             <TabsTrigger value="books">
               <Library className="h-4 w-4 mr-2" />
               Acervo
+            </TabsTrigger>
+            <TabsTrigger value="categories">
+              <Tag className="h-4 w-4 mr-2" />
+              Categorias
             </TabsTrigger>
             <TabsTrigger value="new-loan">
               <FilePlus2 className="h-4 w-4 mr-2" />
@@ -132,6 +140,9 @@ export default function AdminPage() {
           </TabsContent>
           <TabsContent value="books" className="mt-4">
             <BooksSection />
+          </TabsContent>
+          <TabsContent value="categories" className="mt-4">
+            <CategoriesSection />
           </TabsContent>
           <TabsContent value="new-loan" className="mt-4">
             <NewLoanSection />
@@ -572,6 +583,8 @@ function BooksSection() {
     onError: (e) => toast.error(e.message),
   });
 
+  const setCoverMutation = trpc.admin.setBookCover.useMutation();
+
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
@@ -581,6 +594,7 @@ function BooksSection() {
   const [year, setYear] = useState<string>("");
   const [isbn, setIsbn] = useState("");
   const [initialCopies, setInitialCopies] = useState("1");
+  const [coverDraft, setCoverDraft] = useState<CoverPickerValue | null>(null);
 
   const reset = () => {
     setTitle("");
@@ -591,6 +605,7 @@ function BooksSection() {
     setYear("");
     setIsbn("");
     setInitialCopies("1");
+    setCoverDraft(null);
   };
 
   const submit = (e: React.FormEvent) => {
@@ -611,7 +626,29 @@ function BooksSection() {
         initialCopies: Math.max(1, Math.min(20, Number(initialCopies) || 1)),
       },
       {
-        onSuccess: () => {
+        onSuccess: async (res) => {
+          // Se houver capa em rascunho, faz upload em seguida
+          if (coverDraft && res?.bookId) {
+            try {
+              if (coverDraft.mode === "file" && coverDraft.fileBase64) {
+                await setCoverMutation.mutateAsync({
+                  bookId: res.bookId,
+                  fileBase64: coverDraft.fileBase64,
+                });
+              } else if (coverDraft.mode === "url" && coverDraft.externalUrl) {
+                await setCoverMutation.mutateAsync({
+                  bookId: res.bookId,
+                  externalUrl: coverDraft.externalUrl,
+                });
+              }
+              utils.admin.listBooks.invalidate();
+              utils.catalog.search.invalidate();
+            } catch (err: any) {
+              toast.error(
+                err?.message ?? "Livro salvo, mas a capa falhou. Tente novamente em ‘Capa’.",
+              );
+            }
+          }
           setOpen(false);
           reset();
         },
@@ -661,7 +698,12 @@ function BooksSection() {
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="grid gap-1">
-                  <Label>Categoria</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Categoria</Label>
+                    <InlineCreateCategory
+                      onCreated={(newId) => setCategoryId(String(newId))}
+                    />
+                  </div>
                   <Select value={categoryId} onValueChange={setCategoryId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Escolha uma categoria" />
@@ -723,6 +765,17 @@ function BooksSection() {
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
+              <div className="grid gap-1">
+                <Label>Capa do livro (opcional)</Label>
+                <CoverPicker
+                  initialUrl={null}
+                  onChange={(v) => setCoverDraft(v)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Você pode adicionar a capa agora ou depois pelo botão
+                  “Capa” na lista do acervo.
+                </p>
+              </div>
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="outline" type="button">
@@ -764,7 +817,28 @@ function BooksSection() {
               <tbody className="divide-y">
                 {booksQuery.data.map((b) => (
                   <tr key={b.id}>
-                    <td className="px-4 py-3 font-medium">{b.title}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-10 bg-muted rounded overflow-hidden border flex-shrink-0"
+                          style={{ aspectRatio: "4 / 5" }}
+                        >
+                          {b.coverUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={b.coverUrl}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                              <BookOpen className="h-3.5 w-3.5" />
+                            </div>
+                          )}
+                        </div>
+                        <span>{b.title}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {b.author}
                     </td>
@@ -784,16 +858,22 @@ function BooksSection() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          addCopyMutation.mutate({ bookId: b.id })
-                        }
-                        disabled={addCopyMutation.isPending}
-                      >
-                        + Exemplar
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <EditCoverButton
+                          bookId={b.id}
+                          currentCoverUrl={b.coverUrl ?? null}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            addCopyMutation.mutate({ bookId: b.id })
+                          }
+                          disabled={addCopyMutation.isPending}
+                        >
+                          + Exemplar
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -982,5 +1062,265 @@ function NewLoanSection() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+
+// ===================== CATEGORIES =====================
+
+function CategoriesSection() {
+  const categoriesQuery = trpc.catalog.listCategories.useQuery();
+  const utils = trpc.useUtils();
+  const [name, setName] = useState("");
+
+  const createMutation = trpc.admin.createCategory.useMutation({
+    onSuccess: () => {
+      toast.success("Categoria criada.");
+      setName("");
+      utils.catalog.listCategories.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (trimmed.length < 2) {
+      toast.error("Use pelo menos 2 caracteres.");
+      return;
+    }
+    createMutation.mutate({ name: trimmed });
+  };
+
+  return (
+    <div className="grid gap-6 md:grid-cols-[1fr_320px]">
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif text-lg">
+            Categorias do acervo
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {categoriesQuery.isLoading ? (
+            <div className="flex justify-center py-10">
+              <Spinner />
+            </div>
+          ) : !categoriesQuery.data || categoriesQuery.data.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              Nenhuma categoria cadastrada ainda.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {categoriesQuery.data.map((c) => (
+                <Badge
+                  key={c.id}
+                  variant="outline"
+                  className="border-primary/30 text-primary bg-primary/5 px-3 py-1"
+                >
+                  <Tag className="h-3.5 w-3.5 mr-1.5" />
+                  {c.name}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif text-lg">Nova categoria</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleCreate} className="grid gap-3">
+            <div className="grid gap-1">
+              <Label htmlFor="cat-name">Nome</Label>
+              <Input
+                id="cat-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex.: Autoajuda, Biografia, Esportes…"
+                maxLength={64}
+              />
+            </div>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? "Criando…" : "Criar categoria"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              O sistema gera automaticamente um identificador interno (slug)
+              sem acentos.
+            </p>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ===================== COVER EDIT BUTTON =====================
+
+function EditCoverButton({
+  bookId,
+  currentCoverUrl,
+}: {
+  bookId: number;
+  currentCoverUrl: string | null;
+}) {
+  const utils = trpc.useUtils();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<CoverPickerValue | null>(null);
+  const [shouldClear, setShouldClear] = useState(false);
+
+  const setCoverMutation = trpc.admin.setBookCover.useMutation({
+    onSuccess: () => {
+      toast.success("Capa atualizada.");
+      utils.admin.listBooks.invalidate();
+      utils.catalog.search.invalidate();
+      utils.catalog.getBook.invalidate({ id: bookId });
+      setOpen(false);
+      setDraft(null);
+      setShouldClear(false);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleSubmit = () => {
+    if (shouldClear) {
+      setCoverMutation.mutate({ bookId, clear: true });
+      return;
+    }
+    if (!draft) {
+      toast.info("Escolha uma imagem ou cole uma URL.");
+      return;
+    }
+    if (draft.mode === "file" && draft.fileBase64) {
+      setCoverMutation.mutate({ bookId, fileBase64: draft.fileBase64 });
+    } else if (draft.mode === "url" && draft.externalUrl) {
+      setCoverMutation.mutate({ bookId, externalUrl: draft.externalUrl });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <ImageIcon className="h-4 w-4 mr-1.5" />
+          Capa
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Capa do livro</DialogTitle>
+          <DialogDescription>
+            Envie do dispositivo, tire foto na hora (tablet/celular) ou cole a
+            URL pública da imagem. Formato recomendado: 4:5 retrato.
+          </DialogDescription>
+        </DialogHeader>
+        <CoverPicker
+          initialUrl={currentCoverUrl}
+          onChange={(v) => {
+            setDraft(v);
+            setShouldClear(false);
+          }}
+          allowClear
+          onClear={() => {
+            setDraft(null);
+            setShouldClear(true);
+          }}
+        />
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline" type="button">
+              Cancelar
+            </Button>
+          </DialogClose>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={setCoverMutation.isPending}
+          >
+            {setCoverMutation.isPending ? "Salvando…" : "Salvar capa"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+// ===================== INLINE CREATE CATEGORY =====================
+
+function InlineCreateCategory({
+  onCreated,
+}: {
+  onCreated: (newId: number) => void;
+}) {
+  const utils = trpc.useUtils();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const createMutation = trpc.admin.createCategory.useMutation({
+    onSuccess: (res) => {
+      toast.success("Categoria criada.");
+      utils.catalog.listCategories.invalidate();
+      setName("");
+      setOpen(false);
+      if (res?.category?.id) onCreated(res.category.id);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-primary hover:text-primary"
+        >
+          <Plus className="h-3.5 w-3.5 mr-1" />
+          Nova
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Nova categoria</DialogTitle>
+          <DialogDescription>
+            Use um nome curto e claro. Ex.: Autoajuda, Biografia.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-2">
+          <Label htmlFor="quick-cat-name">Nome</Label>
+          <Input
+            id="quick-cat-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={64}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (name.trim().length >= 2) {
+                  createMutation.mutate({ name: name.trim() });
+                }
+              }
+            }}
+          />
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancelar
+            </Button>
+          </DialogClose>
+          <Button
+            type="button"
+            disabled={createMutation.isPending || name.trim().length < 2}
+            onClick={() => createMutation.mutate({ name: name.trim() })}
+          >
+            {createMutation.isPending ? "Criando…" : "Criar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

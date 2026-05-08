@@ -365,6 +365,12 @@ export async function createBook(input: InsertBook): Promise<number> {
   return Number(insertId);
 }
 
+export async function setBookCoverUrl(bookId: number, coverUrl: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(books).set({ coverUrl }).where(eq(books.id, bookId));
+}
+
 export async function addBookCopy(input: InsertBookCopy) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");

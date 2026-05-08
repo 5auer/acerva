@@ -165,52 +165,57 @@ export default function Home() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {booksQuery.data?.map((b) => (
               <Link key={b.id} href={`/livros/${b.id}`}>
-                <Card className="h-full transition-all hover:shadow-md hover:-translate-y-0.5 hover:border-primary/40 cursor-pointer">
-                  <CardContent className="p-5 flex flex-col h-full">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-                        <BookOpen className="h-5 w-5" />
+                <Card className="h-full transition-all hover:shadow-md hover:-translate-y-0.5 hover:border-primary/40 cursor-pointer overflow-hidden">
+                  {/* Capa 4:5 retrato */}
+                  <div
+                    className="w-full bg-muted relative"
+                    style={{ aspectRatio: "4 / 5" }}
+                  >
+                    {b.coverUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={b.coverUrl}
+                        alt={b.title}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-primary/40">
+                        <BookOpen className="h-10 w-10" />
                       </div>
+                    )}
+                    <div className="absolute top-2 right-2">
                       {b.availableCopies > 0 ? (
-                        <Badge className="bg-primary/10 text-primary hover:bg-primary/15 border-0">
+                        <Badge className="bg-primary text-primary-foreground border-0 shadow-sm">
                           <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                          {b.availableCopies} de {b.totalCopies} disponível
-                          {b.availableCopies > 1 ? "is" : ""}
+                          {b.availableCopies}/{b.totalCopies}
                         </Badge>
                       ) : (
-                        <Badge
-                          variant="outline"
-                          className="border-destructive/40 text-destructive bg-destructive/5"
-                        >
+                        <Badge className="bg-destructive text-destructive-foreground border-0 shadow-sm">
                           <XCircle className="h-3.5 w-3.5 mr-1" />
-                          Emprestado
+                          Indisponível
                         </Badge>
                       )}
                     </div>
+                  </div>
+                  <CardContent className="p-4 flex flex-col">
                     <h3
-                      className="font-serif text-lg leading-snug text-foreground line-clamp-2"
+                      className="font-serif text-base leading-snug text-foreground line-clamp-2"
                       style={{ fontWeight: 600 }}
                     >
                       {b.title}
                     </h3>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
                       {b.author}
                     </p>
-                    <div className="flex items-center justify-between mt-auto pt-4">
-                      {b.category ? (
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider">
-                          {b.category.name}
-                        </span>
-                      ) : (
-                        <span />
-                      )}
-                      <span className="text-xs font-medium text-primary group-hover:underline">
-                        Ver detalhes →
+                    {b.category && (
+                      <span className="text-[11px] text-muted-foreground uppercase tracking-wider mt-3">
+                        {b.category.name}
                       </span>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
               </Link>

@@ -1,0 +1,150 @@
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { TRPCError } from "@trpc/server";
+import type { TrpcContext } from "./_core/context";
+
+/**
+ * ACERVA — Categorias e Capa de livro
+ *
+ * Mockamos os helpers de DB e storage para validar que:
+ *  - admin.createCategory normaliza o slug (acentos, espaços, símbolos)
+ *  - admin.createCategory rejeita nomes sem caracteres válidos
+ *  - admin.setBookCover aceita URL externa, dataURL base64 e clear
+ *  - admin.setBookCover rejeita formatos inválidos
+ */
+
+vi.mock("./db", async () => {
+  const real = await vi.importActual<typeof import("./db")>("./db");
+  return {
+    ...real,
+    getDb: vi.fn(async () => null),
+    createCategory: vi.fn(async () => undefined),
+    listCategories: vi.fn(async () => [
+      {
+        id: 42,
+        name: "Auto Ajuda",
+        slug: "auto-ajuda",
+        createdAt: new Date(),
+      },
+    ]),
+    setBookCoverUrl: vi.fn(async () => undefined),
+  };
+});
+
+vi.mock("./storage", () => ({
+  storagePut: vi.fn(async (_key: string, _buf: Buffer, _mime: string) => ({
+    key: "book-covers/1.jpg",
+    url: "/manus-storage/book-covers/1.jpg",
+  })),
+}));
+
+import { appRouter } from "./routers";
+import * as db from "./db";
+import * as storage from "./storage";
+
+type AnyUser = NonNullable<TrpcContext["user"]>;
+
+function adminCtx(): TrpcContext {
+  const user: AnyUser = {
+    id: 1,
+    openId: "admin",
+    email: "admin@acerva.local",
+    name: "Bibliotecária",
+    loginMethod: "manus",
+    role: "admin",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastSignedIn: new Date(),
+  };
+  return {
+    user,
+    req: { protocol: "https", headers: {} } as TrpcContext["req"],
+    res: { clearCookie: () => {} } as unknown as TrpcContext["res"],
+  };
+}
+
+describe("admin.createCategory", () => {
+  beforeEach(() => {
+    vi.mocked(db.createCategory).mockClear();
+  });
+
+  it("gera slug normalizado a partir do nome (acentos e espaços)", async () => {
+    const caller = appRouter.createCaller(adminCtx());
+    const result = await caller.admin.createCategory({ name: "Auto Ajuda" });
+    expect(db.createCategory).toHaveBeenCalledTimes(1);
+    expect(db.createCategory).toHaveBeenCalledWith("Auto Ajuda", "auto-ajuda");
+    expect(result.success).toBe(true);
+    expect(result.category.slug).toBe("auto-ajuda");
+  });
+
+  it("rejeita nomes que não geram slug válido (apenas símbolos)", async () => {
+    const caller = appRouter.createCaller(adminCtx());
+    await expect(caller.admin.createCategory({ name: "@@" })).rejects.toThrow(
+      TRPCError,
+    );
+    expect(db.createCategory).not.toHaveBeenCalled();
+  });
+});
+
+describe("admin.setBookCover", () => {
+  beforeEach(() => {
+    vi.mocked(db.setBookCoverUrl).mockClear();
+    vi.mocked(storage.storagePut).mockClear();
+  });
+
+  it("aceita URL externa e grava direto sem usar storage", async () => {
+    const caller = appRouter.createCaller(adminCtx());
+    const res = await caller.admin.setBookCover({
+      bookId: 9,
+      externalUrl: "https://covers.openlibrary.org/b/id/123-L.jpg",
+    });
+    expect(res.coverUrl).toBe("https://covers.openlibrary.org/b/id/123-L.jpg");
+    expect(db.setBookCoverUrl).toHaveBeenCalledWith(
+      9,
+      "https://covers.openlibrary.org/b/id/123-L.jpg",
+    );
+    expect(storage.storagePut).not.toHaveBeenCalled();
+  });
+
+  it("aceita arquivo via dataURL base64, faz upload no storage e salva url interna", async () => {
+    // 1x1 px JPEG dummy em base64
+    const dataUrl =
+      "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/2wBDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wgARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAr/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAB//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIAAwAAABCT/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPxB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPxB//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxB//9k=";
+    const caller = appRouter.createCaller(adminCtx());
+    const res = await caller.admin.setBookCover({
+      bookId: 9,
+      fileBase64: dataUrl,
+    });
+    expect(storage.storagePut).toHaveBeenCalledTimes(1);
+    expect(res.coverUrl).toBe("/manus-storage/book-covers/1.jpg");
+    expect(db.setBookCoverUrl).toHaveBeenCalledWith(
+      9,
+      "/manus-storage/book-covers/1.jpg",
+    );
+  });
+
+  it("clear remove a capa setando null", async () => {
+    const caller = appRouter.createCaller(adminCtx());
+    const res = await caller.admin.setBookCover({ bookId: 9, clear: true });
+    expect(res.coverUrl).toBeNull();
+    expect(db.setBookCoverUrl).toHaveBeenCalledWith(9, null);
+    expect(storage.storagePut).not.toHaveBeenCalled();
+  });
+
+  it("rejeita arquivo em formato fora de dataURL", async () => {
+    const caller = appRouter.createCaller(adminCtx());
+    await expect(
+      caller.admin.setBookCover({
+        bookId: 9,
+        fileBase64: "naoEhDataURL",
+      }),
+    ).rejects.toThrow(TRPCError);
+    expect(db.setBookCoverUrl).not.toHaveBeenCalled();
+  });
+
+  it("rejeita chamada sem nenhum dos campos (file, url, clear)", async () => {
+    const caller = appRouter.createCaller(adminCtx());
+    await expect(caller.admin.setBookCover({ bookId: 9 })).rejects.toThrow(
+      TRPCError,
+    );
+  });
+});

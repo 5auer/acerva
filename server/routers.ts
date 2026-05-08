@@ -19,6 +19,7 @@ import {
   blockUser,
   countActiveLoansForUser,
   createBook,
+  createCategory,
   createLoan,
   dashboardStats,
   diffDaysFloor,
@@ -44,6 +45,7 @@ import {
   renewLoan,
   returnLoan,
   searchBooks,
+  setBookCoverUrl,
   submitVerification,
   unblockUser,
 } from "./db";
@@ -222,6 +224,44 @@ export const appRouter = router({
 
     listBooks: adminProcedure.query(() => listAllBooksAdmin()),
 
+    createCategory: adminProcedure
+      .input(
+        z.object({
+          name: z
+            .string()
+            .trim()
+            .min(2, "Nome muito curto")
+            .max(64, "Nome muito longo"),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        const name = input.name.trim();
+        // slug determinístico: minúsculo, sem acento, espaços -> hífen
+        const slug = name
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)+/g, "")
+          .slice(0, 64);
+        if (!slug) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Nome de categoria inválido",
+          });
+        }
+        await createCategory(name, slug);
+        const all = await listCategories();
+        const created = all.find((c) => c.slug === slug);
+        if (!created) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Falha ao criar categoria",
+          });
+        }
+        return { success: true, category: created } as const;
+      }),
+
     createBook: adminProcedure
       .input(
         z.object({
@@ -244,6 +284,74 @@ export const appRouter = router({
           await addBookCopy({ bookId: id, copyCode: code, status: "available" });
         }
         return { success: true, bookId: id } as const;
+      }),
+
+    setBookCover: adminProcedure
+      .input(
+        z.object({
+          bookId: z.number().int().positive(),
+          // Mutuamente exclusivos: ou data URL/arquivo base64, ou URL externa, ou null para limpar
+          fileBase64: z.string().optional(), // dataURL ex: data:image/jpeg;base64,...
+          externalUrl: z.string().url().optional(),
+          clear: z.boolean().optional(),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        if (input.clear) {
+          await setBookCoverUrl(input.bookId, null);
+          return { success: true, coverUrl: null } as const;
+        }
+
+        // Caso 1: URL externa colada pelo usuário
+        if (input.externalUrl && !input.fileBase64) {
+          // Apenas guardamos a URL externa diretamente; não baixamos para o storage
+          await setBookCoverUrl(input.bookId, input.externalUrl);
+          return { success: true, coverUrl: input.externalUrl } as const;
+        }
+
+        // Caso 2: arquivo enviado como data URL base64
+        if (input.fileBase64) {
+          const match = input.fileBase64.match(/^data:(.+);base64,(.+)$/);
+          if (!match) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Formato de arquivo inválido. Envie como data URL.",
+            });
+          }
+          const mime = match[1];
+          const base64 = match[2];
+          const buf = Buffer.from(base64, "base64");
+
+          // Limite de 5 MB no servidor (frontend também valida)
+          if (buf.length > 5 * 1024 * 1024) {
+            throw new TRPCError({
+              code: "PAYLOAD_TOO_LARGE",
+              message: "Imagem excede 5 MB.",
+            });
+          }
+
+          if (!/^image\/(jpe?g|png|webp)$/i.test(mime)) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Use JPG, PNG ou WEBP.",
+            });
+          }
+
+          const ext = mime.toLowerCase().includes("png")
+            ? "png"
+            : mime.toLowerCase().includes("webp")
+              ? "webp"
+              : "jpg";
+          const key = `book-covers/${input.bookId}.${ext}`;
+          const { url } = await storagePut(key, buf, mime);
+          await setBookCoverUrl(input.bookId, url);
+          return { success: true, coverUrl: url } as const;
+        }
+
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Envie um arquivo, uma URL ou marque para remover a capa.",
+        });
       }),
 
     addCopy: adminProcedure

@@ -99,3 +99,28 @@ Sistema de gestão da Biblioteca Pública Municipal Cruz e Sousa de Schroeder/SC
 - [ ] Renovação direta pelo leitor (hoje a bibliotecária aprova via WhatsApp)
 - [ ] Modo SaaS multi-biblioteca (estrutura prevista, mas não ativada)
 - [ ] Capa dos livros (upload via admin) — campo já existe no schema
+
+
+## Gestão de categorias (solicitado pós-MVP)
+
+- [ ] Mutation `admin.createCategory` exposta no router (já existe helper em db)
+- [ ] Aba "Categorias" no painel admin: listar + criar nova categoria
+- [ ] Botão "Nova categoria" dentro do modal de cadastro de livro
+- [ ] Teste vitest da nova mutation `admin.createCategory`
+- [ ] Validação de status, checkpoint e entrega
+
+
+## Capa de livro (4:5) e categorias completas
+
+- [ ] Migration: adicionar coluna coverUrl em books
+- [ ] Mutation admin.createCategory exposta no router
+- [ ] Mutation admin.uploadBookCover (arquivo base64 e URL externa)
+- [ ] Mutation admin.setBookCoverUrl para colar URL da internet
+- [ ] Componente CoverPicker (arquivo/câmera/URL) com preview 4:5
+- [ ] Botão "Nova categoria" dentro do modal de cadastro de livro
+- [ ] Aba "Categorias" no painel admin: listar + criar
+- [ ] Card do catálogo público mostra capa 4:5 (fallback elegante)
+- [ ] Página de detalhes do livro mostra capa 4:5
+- [ ] Painel admin lista capa em miniatura por linha
+- [ ] Teste vitest do upload de capa (URL e arquivo)
+- [ ] Passo-a-passo de jornada do usuário (markdown)

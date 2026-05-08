@@ -58,9 +58,24 @@ export default function BookDetails() {
             const available = b.availableCopies > 0;
             return (
               <article>
-                <div className="flex items-start gap-4 mb-6">
-                  <div className="hidden sm:flex h-20 w-20 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shrink-0">
-                    <BookOpen className="h-9 w-9" />
+                <div className="grid md:grid-cols-[180px_1fr] gap-6 mb-6 items-start">
+                  {/* Capa 4:5 */}
+                  <div
+                    className="w-full bg-muted rounded-xl overflow-hidden border shadow-sm"
+                    style={{ aspectRatio: "4 / 5", maxWidth: 220 }}
+                  >
+                    {b.coverUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={b.coverUrl}
+                        alt={b.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-primary/50">
+                        <BookOpen className="h-12 w-12" />
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1">
                     {b.category ? (
