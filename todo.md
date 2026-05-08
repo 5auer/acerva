@@ -91,14 +91,19 @@ Sistema de gestão da Biblioteca Pública Municipal Cruz e Sousa de Schroeder/SC
 - [x] Apenas a bibliotecária (admin) registra empréstimos e devoluções
 - [x] Apenas a bibliotecária aprova/rejeita verificação de leitores
 
-## Pós-MVP (a discutir com a bibliotecária / Prefeitura)
+## Backlog futuro (fora do escopo desta entrega — a discutir com a bibliotecária / Prefeitura)
 
-- [ ] Reservas online (fila de espera por exemplar)
-- [ ] Catálogo importado de planilha existente (CSV)
-- [ ] Política de multa monetária (hoje só bloqueio)
-- [ ] Renovação direta pelo leitor (hoje a bibliotecária aprova via WhatsApp)
-- [ ] Modo SaaS multi-biblioteca (estrutura prevista, mas não ativada)
+Funcionalidades **não priorizadas** para o MVP de apresentação, listadas como referência para conversas futuras (sem checkbox — não são tarefas em aberto desta entrega):
+
+* Reservas online (fila de espera por exemplar)
+* Catálogo importado de planilha existente (CSV)
+* Política de multa monetária configurável (hoje só bloqueio automático por atraso)
+* Modo SaaS multi-biblioteca com isolamento por tenant (a estrutura de dados foi pensada para suportar, mas não foi ativada nesta versão)
+
+### Itens originalmente listados como pós-MVP que **já foram entregues**
+
 - [x] Capa dos livros (upload via admin) — implementado em v1.2
+- [x] Renovação pelo leitor — já funciona em `/minha-conta` (máx. 2x, sem atraso, valida o dono); coberto em `acerva.loans.test.ts`
 
 
 ## Gestão de categorias
