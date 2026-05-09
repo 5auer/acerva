@@ -1,196 +1,360 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { PageShell } from "@/components/PageShell";
-import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLibrary } from "@/contexts/LibraryContext";
+import { getBook, recordView } from "@/lib/api/books";
+import { getMyMembership } from "@/lib/api/auth";
+import { createReservation } from "@/lib/api/reservations";
+import { listReviewsForBook, getMyReview, upsertReview } from "@/lib/api/reviews";
+import {
+  createNotifyRequest,
+  getMyNotifyRequest,
+  cancelNotifyRequest,
+} from "@/lib/api/community";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  BellPlus,
+  BellRing,
   BookOpen,
-  Building2,
-  Calendar,
-  CheckCircle2,
-  Hash,
-  Tag,
-  XCircle,
+  Bookmark,
+  Loader2,
+  Star,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Link, useRoute } from "wouter";
 
 export default function BookDetails() {
-  const [, params] = useRoute("/livros/:id");
-  const id = params ? Number(params.id) : NaN;
-  const bookQuery = trpc.catalog.getBook.useQuery(
-    { id },
-    { enabled: Number.isFinite(id) && id > 0 },
-  );
+  const lib = useLibrary();
   const { user } = useAuth();
+  const [, params] = useRoute<{ slug: string; id: string }>("/:slug/livros/:id");
+  const bookId = params?.id;
+  const qc = useQueryClient();
+
+  const { data: book, isLoading } = useQuery({
+    queryKey: ["book", bookId],
+    queryFn: () => (bookId ? getBook(bookId) : Promise.resolve(null)),
+    enabled: !!bookId,
+  });
+
+  const { data: membership } = useQuery({
+    queryKey: ["membership", lib.id, user?.id],
+    queryFn: () => (user ? getMyMembership(lib.id, user.id) : Promise.resolve(null)),
+    enabled: !!user,
+  });
+
+  const { data: reviews = [] } = useQuery({
+    queryKey: ["reviews", bookId],
+    queryFn: () => (bookId ? listReviewsForBook(bookId) : Promise.resolve([])),
+    enabled: !!bookId,
+  });
+
+  const { data: myReview } = useQuery({
+    queryKey: ["my-review", bookId, user?.id],
+    queryFn: () =>
+      bookId && user ? getMyReview(bookId, user.id) : Promise.resolve(null),
+    enabled: !!bookId && !!user,
+  });
+
+  const { data: notifyReq } = useQuery({
+    queryKey: ["notify-req", bookId, user?.id],
+    queryFn: () =>
+      bookId && user ? getMyNotifyRequest(bookId, user.id) : Promise.resolve(null),
+    enabled: !!bookId && !!user,
+  });
+
+  useEffect(() => {
+    if (bookId) recordView(bookId, lib.id).catch(() => {});
+  }, [bookId, lib.id]);
+
+  const reserveM = useMutation({
+    mutationFn: () => createReservation(bookId!, lib.id),
+    onSuccess: () => {
+      toast.success("Reserva criada — você tem 24h para retirar na biblioteca.");
+      qc.invalidateQueries({ queryKey: ["book", bookId] });
+      qc.invalidateQueries({ queryKey: ["my-reservations"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao reservar"),
+  });
+
+  const notifyM = useMutation({
+    mutationFn: () => createNotifyRequest(bookId!, lib.id),
+    onSuccess: () => {
+      toast.success("Vamos te avisar quando o livro estiver disponível.");
+      qc.invalidateQueries({ queryKey: ["notify-req", bookId, user?.id] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao registrar"),
+  });
+
+  const cancelNotifyM = useMutation({
+    mutationFn: (id: string) => cancelNotifyRequest(id),
+    onSuccess: () => {
+      toast.success("Aviso cancelado");
+      qc.invalidateQueries({ queryKey: ["notify-req", bookId, user?.id] });
+    },
+  });
+
+  if (isLoading)
+    return (
+      <PageShell>
+        <div className="container py-20 flex justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </PageShell>
+    );
+
+  if (!book)
+    return (
+      <PageShell>
+        <div className="container py-20 text-center text-muted-foreground">
+          Livro não encontrado.
+        </div>
+      </PageShell>
+    );
+
+  const verified = membership?.verification_status === "verified";
+  const blocked = membership?.is_blocked ?? false;
+  const canReserve = !!user && verified && !blocked && book.available_copies > 0;
+  const canNotify = !!user && verified && !blocked && book.available_copies === 0 && !notifyReq;
 
   return (
     <PageShell>
-      <div className="container py-8 max-w-4xl">
-        <Link href="/">
-          <Button variant="ghost" size="sm" className="mb-6 -ml-2">
-            <ArrowLeft className="h-4 w-4 mr-2" />
+      <section className="container py-6 md:py-10 max-w-5xl">
+        <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
+          <Link href={`/${lib.slug}`}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
             Voltar ao catálogo
-          </Button>
-        </Link>
+          </Link>
+        </Button>
 
-        {bookQuery.isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Spinner />
+        <div className="grid md:grid-cols-[280px_1fr] gap-8">
+          <div>
+            <div className="aspect-[2/3] rounded-lg overflow-hidden bg-muted shadow-md">
+              {book.cover_url ? (
+                <img src={book.cover_url} alt={book.title} className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <BookOpen className="h-12 w-12 text-muted-foreground/40" />
+                </div>
+              )}
+            </div>
           </div>
-        ) : bookQuery.isError || !bookQuery.data ? (
-          <Card className="border-dashed">
-            <CardContent className="py-16 text-center">
-              <p className="text-foreground font-medium">
-                Livro não encontrado.
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Volte ao catálogo para escolher outra obra.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          (() => {
-            const b = bookQuery.data;
-            const available = b.availableCopies > 0;
-            return (
-              <article>
-                <div className="flex items-start gap-4 mb-6">
-                  <div className="hidden sm:flex h-20 w-20 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shrink-0">
-                    <BookOpen className="h-9 w-9" />
-                  </div>
-                  <div className="flex-1">
-                    {b.category ? (
-                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                        {b.category.name}
-                      </p>
-                    ) : null}
-                    <h1
-                      className="font-serif text-3xl md:text-4xl text-foreground leading-tight"
-                      style={{ fontWeight: 600 }}
-                    >
-                      {b.title}
-                    </h1>
-                    <p className="text-lg text-muted-foreground mt-1">
-                      por {b.author}
-                    </p>
-                    <div className="mt-4">
-                      {available ? (
-                        <Badge className="bg-primary/10 text-primary hover:bg-primary/15 border-0 text-sm py-1.5 px-3">
-                          <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                          {b.availableCopies} de {b.totalCopies}{" "}
-                          exemplar{b.availableCopies > 1 ? "es" : ""}{" "}
-                          disponível{b.availableCopies > 1 ? "is" : ""}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="border-destructive/40 text-destructive bg-destructive/5 text-sm py-1.5 px-3"
-                        >
-                          <XCircle className="h-4 w-4 mr-1.5" />
-                          Todos os exemplares emprestados no momento
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
+
+          <div>
+            {book.category && (
+              <Badge variant="outline" className="mb-2">
+                {book.category.name}
+              </Badge>
+            )}
+            <h1 className="font-serif text-3xl md:text-4xl mb-1">{book.title}</h1>
+            <p className="text-lg text-muted-foreground mb-4">{book.author}</p>
+
+            <div className="flex flex-wrap items-center gap-3 mb-6">
+              <Badge variant={book.available_copies > 0 ? "default" : "secondary"}>
+                {book.available_copies > 0
+                  ? `${book.available_copies} de ${book.total_copies} disponível`
+                  : "Indisponível"}
+              </Badge>
+              {book.avg_rating !== null && (
+                <div className="flex items-center gap-1 text-sm">
+                  <Star className="h-4 w-4 fill-current text-amber-500" />
+                  <span className="font-medium">{book.avg_rating.toFixed(1)}</span>
+                  <span className="text-muted-foreground">({book.review_count})</span>
                 </div>
+              )}
+            </div>
 
-                <div className="acerva-divider mb-6" />
+            <dl className="grid grid-cols-2 gap-3 mb-6 text-sm">
+              {book.publisher && <Field label="Editora" value={book.publisher} />}
+              {book.publication_year && (
+                <Field label="Ano" value={book.publication_year.toString()} />
+              )}
+              {book.isbn && <Field label="ISBN" value={book.isbn} />}
+              {book.shelf_location && (
+                <Field label="Localização" value={book.shelf_location} />
+              )}
+            </dl>
 
-                <div className="grid md:grid-cols-3 gap-4 mb-6">
-                  <Card>
-                    <CardContent className="p-4 flex items-start gap-3">
-                      <Building2 className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                          Editora
-                        </p>
-                        <p className="font-medium">
-                          {b.publisher ?? "—"}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 flex items-start gap-3">
-                      <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                          Ano
-                        </p>
-                        <p className="font-medium">
-                          {b.publicationYear ?? "—"}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 flex items-start gap-3">
-                      <Hash className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                          ISBN
-                        </p>
-                        <p className="font-medium">{b.isbn ?? "—"}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
+            {book.description && (
+              <p className="text-foreground/85 leading-relaxed mb-8">{book.description}</p>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              {!user ? (
+                <Button asChild>
+                  <Link
+                    href={`/auth?next=${encodeURIComponent(`/${lib.slug}/livros/${book.id}`)}`}
+                  >
+                    Entre para reservar
+                  </Link>
+                </Button>
+              ) : !verified ? (
+                <Button asChild variant="outline">
+                  <Link href={`/${lib.slug}/conta`}>
+                    Cadastro pendente — completar verificação
+                  </Link>
+                </Button>
+              ) : blocked ? (
+                <Button disabled variant="outline">
+                  Conta bloqueada — procure a biblioteca
+                </Button>
+              ) : canReserve ? (
+                <Button onClick={() => reserveM.mutate()} disabled={reserveM.isPending} className="gap-2">
+                  {reserveM.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  <Bookmark className="h-4 w-4" />
+                  Reservar (24h para retirar)
+                </Button>
+              ) : notifyReq ? (
+                <Button
+                  variant="outline"
+                  onClick={() => cancelNotifyM.mutate(notifyReq.id)}
+                  disabled={cancelNotifyM.isPending}
+                  className="gap-2"
+                >
+                  <BellRing className="h-4 w-4" />
+                  Avisar quando disponível (cancelar)
+                </Button>
+              ) : canNotify ? (
+                <Button
+                  variant="outline"
+                  onClick={() => notifyM.mutate()}
+                  disabled={notifyM.isPending}
+                  className="gap-2"
+                >
+                  {notifyM.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  <BellPlus className="h-4 w-4" />
+                  Avise-me quando disponível
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-12 border-t pt-8">
+          <h2 className="font-serif text-2xl mb-6">Avaliações dos leitores</h2>
+
+          {user && verified && (
+            <ReviewForm
+              bookId={book.id}
+              libraryId={lib.id}
+              existing={myReview}
+              onSaved={() => {
+                qc.invalidateQueries({ queryKey: ["reviews", book.id] });
+                qc.invalidateQueries({ queryKey: ["my-review", book.id, user.id] });
+                qc.invalidateQueries({ queryKey: ["book", book.id] });
+              }}
+            />
+          )}
+
+          <div className="space-y-4 mt-6">
+            {reviews.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                Ainda não há avaliações. Seja o primeiro a opinar.
+              </p>
+            ) : (
+              reviews.map((r) => (
+                <div key={r.id} className="rounded-lg border bg-card p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">{r.reader_name}</span>
+                    <span className="flex items-center gap-0.5">
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-4 w-4 ${
+                            i < r.rating ? "fill-amber-500 text-amber-500" : "text-muted"
+                          }`}
+                        />
+                      ))}
+                    </span>
+                  </div>
+                  {r.comment && <p className="text-sm text-foreground/85">{r.comment}</p>}
                 </div>
-
-                {b.description ? (
-                  <Card className="mb-6">
-                    <CardContent className="p-6">
-                      <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
-                        <Tag className="h-3.5 w-3.5" />
-                        Sobre a obra
-                      </p>
-                      <p className="text-foreground/90 leading-relaxed whitespace-pre-line">
-                        {b.description}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : null}
-
-                {/* CTA */}
-                <Card className="border-primary/30 bg-primary/5">
-                  <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div>
-                      <p
-                        className="font-serif text-lg text-foreground"
-                        style={{ fontWeight: 600 }}
-                      >
-                        Quer levar este livro para casa?
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Compareça à biblioteca com seu CPF. A bibliotecária
-                        registra o empréstimo no sistema. Prazo de devolução:
-                        15 dias.
-                      </p>
-                    </div>
-                    {user ? (
-                      <Link href="/minha-conta">
-                        <Button size="lg">Minha conta</Button>
-                      </Link>
-                    ) : (
-                      <Button
-                        size="lg"
-                        onClick={() => {
-                          window.location.href = getLoginUrl();
-                        }}
-                      >
-                        Fazer cadastro
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              </article>
-            );
-          })()
-        )}
-      </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
     </PageShell>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs uppercase tracking-wider text-muted-foreground">{label}</dt>
+      <dd className="font-medium">{value}</dd>
+    </div>
+  );
+}
+
+function ReviewForm({
+  bookId,
+  libraryId,
+  existing,
+  onSaved,
+}: {
+  bookId: string;
+  libraryId: string;
+  existing: any;
+  onSaved: () => void;
+}) {
+  const [rating, setRating] = useState<number>(existing?.rating ?? 0);
+  const [comment, setComment] = useState<string>(existing?.comment ?? "");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <Label className="mb-2 block">Sua avaliação</Label>
+      <div className="flex items-center gap-1 mb-3">
+        {Array.from({ length: 5 }, (_, i) => {
+          const n = i + 1;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setRating(n)}
+              className="hover:scale-110 transition-transform"
+              aria-label={`${n} estrelas`}
+            >
+              <Star
+                className={`h-6 w-6 ${
+                  n <= rating ? "fill-amber-500 text-amber-500" : "text-muted-foreground/40"
+                }`}
+              />
+            </button>
+          );
+        })}
+      </div>
+      <Textarea
+        rows={3}
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="Comentário (opcional)"
+      />
+      <div className="mt-3 flex justify-end">
+        <Button
+          disabled={rating === 0 || busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await upsertReview({ bookId, libraryId, rating, comment: comment.trim() || null });
+              toast.success(existing ? "Avaliação atualizada" : "Avaliação enviada");
+              onSaved();
+            } catch (e: any) {
+              toast.error(e.message ?? "Falha ao salvar");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          {existing ? "Atualizar" : "Publicar avaliação"}
+        </Button>
+      </div>
+    </div>
   );
 }
