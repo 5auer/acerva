@@ -371,6 +371,33 @@ export async function setBookCoverUrl(bookId: number, coverUrl: string | null) {
   await db.update(books).set({ coverUrl }).where(eq(books.id, bookId));
 }
 
+export type UpdateBookInput = {
+  title: string;
+  author: string;
+  categoryId: number;
+  description: string | null;
+  publisher: string | null;
+  publicationYear: number | null;
+  isbn: string | null;
+};
+
+export async function updateBook(bookId: number, data: UpdateBookInput) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db
+    .update(books)
+    .set({
+      title: data.title,
+      author: data.author,
+      categoryId: data.categoryId,
+      description: data.description,
+      publisher: data.publisher,
+      publicationYear: data.publicationYear,
+      isbn: data.isbn,
+    })
+    .where(eq(books.id, bookId));
+}
+
 export async function addBookCopy(input: InsertBookCopy) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");

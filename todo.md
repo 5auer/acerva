@@ -130,3 +130,15 @@ Funcionalidades **não priorizadas** para o MVP de apresentação, listadas como
 ## Pós-MVP que ainda restam (não bloqueiam apresentação)
 
 - [x] Passo-a-passo de jornada do usuário (markdown) — `JORNADA_USUARIO.md`
+
+
+## Edição de livros cadastrados (v1.5)
+
+- [x] Helper `updateBook(id, data)` em `server/db.ts`
+- [x] Mutation `admin.updateBook` no router com validações
+- [x] Botão "Editar" em cada linha da tabela do Acervo
+- [x] Modal de edição com todos os campos (título, autor, categoria, descrição, ISBN, editora, ano)
+- [x] Pré-preencher campos com dados atuais ao abrir (resetForm ao abrir modal)
+- [x] Validações no formulário (título e autor obrigatórios)
+- [x] Teste vitest da nova mutation (6 testes cobrindo sucesso, normalização, validações, role)
+- [x] Checkpoint v1.5

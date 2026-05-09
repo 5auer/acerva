@@ -38,6 +38,7 @@ import {
   HourglassIcon,
   Image as ImageIcon,
   Library,
+  PencilIcon,
   Plus,
   RotateCcw,
   ShieldCheck,
@@ -859,6 +860,10 @@ function BooksSection() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
+                        <EditBookButton
+                          book={b}
+                          categories={categoriesQuery.data ?? []}
+                        />
                         <EditCoverButton
                           bookId={b.id}
                           currentCoverUrl={b.coverUrl ?? null}
@@ -1324,3 +1329,191 @@ function InlineCreateCategory({
     </Dialog>
   );
 }
+
+// ===================== EDIT BOOK BUTTON =====================
+
+function EditBookButton({
+  book,
+  categories,
+}: {
+  book: {
+    id: number;
+    title: string;
+    author: string;
+    categoryId: number;
+    description: string | null;
+    publisher: string | null;
+    publicationYear: number | null;
+    isbn: string | null;
+  };
+  categories: Array<{ id: number; name: string }>;
+}) {
+  const utils = trpc.useUtils();
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState(book.title);
+  const [author, setAuthor] = useState(book.author);
+  const [categoryId, setCategoryId] = useState(String(book.categoryId));
+  const [description, setDescription] = useState(book.description ?? "");
+  const [publisher, setPublisher] = useState(book.publisher ?? "");
+  const [year, setYear] = useState(book.publicationYear ? String(book.publicationYear) : "");
+  const [isbn, setIsbn] = useState(book.isbn ?? "");
+
+  const resetForm = () => {
+    setTitle(book.title);
+    setAuthor(book.author);
+    setCategoryId(String(book.categoryId));
+    setDescription(book.description ?? "");
+    setPublisher(book.publisher ?? "");
+    setYear(book.publicationYear ? String(book.publicationYear) : "");
+    setIsbn(book.isbn ?? "");
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (newOpen) {
+      resetForm();
+    }
+  };
+
+  const updateBookMutation = trpc.admin.updateBook.useMutation({
+    onSuccess: () => {
+      toast.success("Livro atualizado com sucesso.");
+      utils.admin.listBooks.invalidate();
+      utils.admin.stats.invalidate();
+      utils.catalog.search.invalidate();
+      utils.catalog.getBook.invalidate({ id: book.id });
+      setOpen(false);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!categoryId) {
+      toast.error("Escolha uma categoria.");
+      return;
+    }
+    updateBookMutation.mutate({
+      bookId: book.id,
+      title,
+      author,
+      categoryId: Number(categoryId),
+      description: description || undefined,
+      publisher: publisher || undefined,
+      publicationYear: year ? Number(year) : undefined,
+      isbn: isbn || undefined,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <PencilIcon className="h-4 w-4 mr-1.5" />
+          Editar
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Editar livro</DialogTitle>
+          <DialogDescription>
+            Atualize os dados do livro. Todos os campos são obrigatórios exceto descrição, editora e ano.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="edit-title">Título</Label>
+            <Input
+              id="edit-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ex.: Dom Casmurro"
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-author">Autor</Label>
+            <Input
+              id="edit-author"
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              placeholder="Ex.: Machado de Assis"
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-category">Categoria</Label>
+            <Select value={categoryId} onValueChange={setCategoryId}>
+              <SelectTrigger id="edit-category">
+                <SelectValue placeholder="Escolha uma categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={String(cat.id)}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-description">Descrição</Label>
+            <Textarea
+              id="edit-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Resumo ou sinopse do livro (opcional)"
+              rows={3}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-publisher">Editora</Label>
+              <Input
+                id="edit-publisher"
+                value={publisher}
+                onChange={(e) => setPublisher(e.target.value)}
+                placeholder="Ex.: Companhia das Letras"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-year">Ano</Label>
+              <Input
+                id="edit-year"
+                type="number"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                placeholder="Ex.: 2020"
+                min="1500"
+                max="3000"
+              />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-isbn">ISBN</Label>
+            <Input
+              id="edit-isbn"
+              value={isbn}
+              onChange={(e) => setIsbn(e.target.value)}
+              placeholder="Ex.: 978-8535914849"
+            />
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" type="button">
+                Cancelar
+              </Button>
+            </DialogClose>
+            <Button
+              type="submit"
+              disabled={updateBookMutation.isPending}
+            >
+              {updateBookMutation.isPending ? "Salvando…" : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+

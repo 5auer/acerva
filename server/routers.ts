@@ -48,6 +48,7 @@ import {
   setBookCoverUrl,
   submitVerification,
   unblockUser,
+  updateBook,
 } from "./db";
 import { storagePut } from "./storage";
 
@@ -284,6 +285,50 @@ export const appRouter = router({
           await addBookCopy({ bookId: id, copyCode: code, status: "available" });
         }
         return { success: true, bookId: id } as const;
+      }),
+
+    updateBook: adminProcedure
+      .input(
+        z.object({
+          bookId: z.number().int().positive(),
+          title: z.string().trim().min(1, "Título é obrigatório.").max(255),
+          author: z.string().trim().min(1, "Autor é obrigatório.").max(255),
+          categoryId: z.number().int().positive(),
+          description: z.string().max(2000).nullable().optional(),
+          publisher: z.string().max(160).nullable().optional(),
+          publicationYear: z
+            .number()
+            .int()
+            .min(1500)
+            .max(3000)
+            .nullable()
+            .optional(),
+          isbn: z.string().max(32).nullable().optional(),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        const existing = await getBookById(input.bookId);
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Livro não encontrado.",
+          });
+        }
+        const normalize = (v: string | null | undefined) => {
+          if (v === undefined || v === null) return null;
+          const trimmed = v.trim();
+          return trimmed.length === 0 ? null : trimmed;
+        };
+        await updateBook(input.bookId, {
+          title: input.title.trim(),
+          author: input.author.trim(),
+          categoryId: input.categoryId,
+          description: normalize(input.description ?? null),
+          publisher: normalize(input.publisher ?? null),
+          publicationYear: input.publicationYear ?? null,
+          isbn: normalize(input.isbn ?? null),
+        });
+        return { success: true, bookId: input.bookId } as const;
       }),
 
     setBookCover: adminProcedure

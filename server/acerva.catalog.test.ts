@@ -27,6 +27,8 @@ vi.mock("./db", async () => {
       },
     ]),
     setBookCoverUrl: vi.fn(async () => undefined),
+    getBookById: vi.fn(async () => null),
+    updateBook: vi.fn(async () => undefined),
   };
 });
 
@@ -146,5 +148,186 @@ describe("admin.setBookCover", () => {
     await expect(caller.admin.setBookCover({ bookId: 9 })).rejects.toThrow(
       TRPCError,
     );
+  });
+});
+
+describe("admin.updateBook", () => {
+  beforeEach(() => {
+    (db.getBookById as any).mockClear?.();
+    (db.updateBook as any).mockClear?.();
+  });
+
+  it("atualiza livro com todos os campos válidos", async () => {
+    (db.getBookById as any).mockResolvedValueOnce({
+      id: 5,
+      title: "Old Title",
+      author: "Old Author",
+      categoryId: 1,
+      description: null,
+      publisher: null,
+      publicationYear: null,
+      isbn: null,
+      coverUrl: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const caller = appRouter.createCaller(adminCtx());
+    const result = await caller.admin.updateBook({
+      bookId: 5,
+      title: "Dom Casmurro",
+      author: "Machado de Assis",
+      categoryId: 2,
+      description: "Uma obra clássica",
+      publisher: "Companhia das Letras",
+      publicationYear: 1899,
+      isbn: "978-8535914849",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.bookId).toBe(5);
+    expect((db.updateBook as any)).toHaveBeenCalledWith(5, {
+      title: "Dom Casmurro",
+      author: "Machado de Assis",
+      categoryId: 2,
+      description: "Uma obra clássica",
+      publisher: "Companhia das Letras",
+      publicationYear: 1899,
+      isbn: "978-8535914849",
+    });
+  });
+
+  it("normaliza campos opcionais vazios para null", async () => {
+    (db.getBookById as any).mockResolvedValueOnce({
+      id: 5,
+      title: "Old Title",
+      author: "Old Author",
+      categoryId: 1,
+      description: "Old desc",
+      publisher: "Old pub",
+      publicationYear: 2000,
+      isbn: "123",
+      coverUrl: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const caller = appRouter.createCaller(adminCtx());
+    await caller.admin.updateBook({
+      bookId: 5,
+      title: "New Title",
+      author: "New Author",
+      categoryId: 1,
+      description: "  ", // espaços em branco → null
+      publisher: "", // vazio → null
+      publicationYear: undefined,
+      isbn: null,
+    });
+
+    expect((db.updateBook as any)).toHaveBeenCalledWith(5, {
+      title: "New Title",
+      author: "New Author",
+      categoryId: 1,
+      description: null,
+      publisher: null,
+      publicationYear: null,
+      isbn: null,
+    });
+  });
+
+  it("rejeita livro não encontrado", async () => {
+    vi.mocked(db.getBookById).mockResolvedValueOnce(null);
+
+    const caller = appRouter.createCaller(adminCtx());
+    await expect(
+      caller.admin.updateBook({
+        bookId: 999,
+        title: "Title",
+        author: "Author",
+        categoryId: 1,
+      }),
+    ).rejects.toThrow(TRPCError);
+    expect((db.updateBook as any)).not.toHaveBeenCalled();
+  });
+
+  it("rejeita título vazio", async () => {
+    (db.getBookById as any).mockResolvedValueOnce({
+      id: 5,
+      title: "Old",
+      author: "Old",
+      categoryId: 1,
+      description: null,
+      publisher: null,
+      publicationYear: null,
+      isbn: null,
+      coverUrl: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const caller = appRouter.createCaller(adminCtx());
+    await expect(
+      caller.admin.updateBook({
+        bookId: 5,
+        title: "   ", // apenas espaços
+        author: "Author",
+        categoryId: 1,
+      }),
+    ).rejects.toThrow(TRPCError);
+  });
+
+  it("rejeita autor vazio", async () => {
+    (db.getBookById as any).mockResolvedValueOnce({
+      id: 5,
+      title: "Title",
+      author: "Old",
+      categoryId: 1,
+      description: null,
+      publisher: null,
+      publicationYear: null,
+      isbn: null,
+      coverUrl: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const caller = appRouter.createCaller(adminCtx());
+    await expect(
+      caller.admin.updateBook({
+        bookId: 5,
+        title: "Title",
+        author: "", // vazio
+        categoryId: 1,
+      }),
+    ).rejects.toThrow(TRPCError);
+  });
+
+  it("rejeita se não for admin", async () => {
+    const user: AnyUser = {
+      id: 2,
+      openId: "reader",
+      email: "reader@acerva.local",
+      name: "Leitor",
+      loginMethod: "manus",
+      role: "user",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    };
+    const readerCtx: TrpcContext = {
+      user,
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: () => {} } as unknown as TrpcContext["res"],
+    };
+
+    const caller = appRouter.createCaller(readerCtx);
+    await expect(
+      caller.admin.updateBook({
+        bookId: 5,
+        title: "Title",
+        author: "Author",
+        categoryId: 1,
+      }),
+    ).rejects.toThrow(TRPCError);
   });
 });
